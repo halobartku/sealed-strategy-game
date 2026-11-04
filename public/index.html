@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sealed — auction strategy for humans &amp; agents</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --line: #262b36;
+    --ink: #e8eaf0;
+    --dim: #8b93a7;
+    --gold: #f0b429;
+    --sun: #f0b429;
+    --moon: #9aa7ff;
+    --star: #58d68d;
+    --danger: #e74c3c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 18px 14px 80px; }
+  header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  header h1 { font-size: 26px; margin: 0; letter-spacing: 0.5px; }
+  header h1 .seal { color: var(--gold); }
+  .tagline { color: var(--dim); font-size: 14px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin: 0 0 10px; }
+  button {
+    background: var(--gold); color: #1a1400; border: 0; border-radius: 8px;
+    padding: 10px 18px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button.small { padding: 6px 12px; font-size: 13px; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  input {
+    background: #0c0e12; border: 1px solid var(--line); color: var(--ink);
+    border-radius: 8px; padding: 10px 12px; font-size: 15px; width: 100%;
+  }
+  input:focus { outline: 1px solid var(--gold); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px; border-bottom: 1px solid var(--line); }
+  .suit { font-size: 18px; }
+  .sun { color: var(--sun); } .moon { color: var(--moon); } .star { color: var(--star); }
+  .lot-hero { display: flex; align-items: center; gap: 16px; }
+  .lot-glyph { font-size: 64px; line-height: 1; }
+  .lot-points { font-size: 34px; font-weight: 700; }
+  .timer { font-size: 15px; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--dim); }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); font-size: 12px; color: var(--dim); }
+  .mult { display: inline-block; min-width: 30px; text-align: center; padding: 3px 8px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+  .mult.x2 { background: rgba(240,180,41,0.15); color: var(--gold); }
+  .mult.x1 { background: rgba(139,147,167,0.12); color: var(--dim); }
+  .bidbar { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .bidbar input { width: 130px; }
+  .flash { animation: flash 0.8s ease; }
+  @keyframes flash { 0% { background: rgba(240,180,41,0.25); } 100% { background: var(--card); } }
+  .win { color: var(--star); font-weight: 700; }
+  .code-big { font-size: 30px; letter-spacing: 4px; font-weight: 700; color: var(--gold); }
+  .hidden { display: none !important; }
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
+    background: #232a38; border: 1px solid var(--line); color: var(--ink);
+    padding: 10px 18px; border-radius: 10px; font-size: 14px; opacity: 0;
+    transition: opacity 0.25s; pointer-events: none; z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  .revealbox { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px; margin-top: 10px; }
+  .rules summary { cursor: pointer; color: var(--dim); font-size: 14px; }
+  .rules p, .rules li { font-size: 14px; color: var(--ink); line-height: 1.55; }
+  footer { color: #566072; font-size: 12px; margin-top: 26px; text-align: center; }
+  a { color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1><span class="seal">&#9679;</span> Sealed</h1></header>
+  <div class="tagline">Sealed-bid auction strategy — humans and AI agents at the same table. 2–4 players, ~5 minutes.</div>
+
+  <!-- LOBBY / HOME -->
+  <div id="home">
+    <div class="card">
+      <h2>Host a table</h2>
+      <div class="row">
+        <input id="nameNew" class="grow" placeholder="Your name" maxlength="20" value="">
+        <button onclick="createGame()">Create game</button>
+      </div>
+      <p class="muted" style="font-size:13px;margin:10px 0 0;">You get a match code. Friends open this URL and join; empty seats can be filled by bots.</p>
+    </div>
+    <div class="card">
+      <h2>Join a table</h2>
+      <div class="row">
+        <input id="codeJoin" class="grow" placeholder="Match code (e.g. A1B2C3)" maxlength="6" style="text-transform:uppercase">
+        <input id="nameJoin" placeholder="Your name" maxlength="20" style="max-width:160px">
+        <button class="ghost" onclick="joinGame()">Join</button>
+      </div>
+    </div>
+    <div class="card rules">
+      <details>
+        <summary>How to play (one paragraph)</summary>
+        <p>Eight lots (Sun &#9788;, Moon &#9784;, Star &#9733;) are auctioned one at a time to 2–4 players who each start with 100 coins. Everyone secretly values the suits differently — exactly one suit is worth <b>double</b> points to you — and bids are <b>sealed</b>: all bids are revealed together, the highest pays their bid and takes the lot, and ties go to the earlier seat. Highest total points after 8 lots wins; leftover coins break ties. Every turn you weigh the lot's base value against your hidden multiplier, what the others might be hiding, and how many coins you'll need for the lots still to come — spend everything early and you're powerless at the end.</p>
+      </details>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game" class="hidden">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div>Table <span class="code-big" id="codeLbl"></span></div>
+        <div class="row" id="roundLbl" style="gap:8px;"></div>
+      </div>
+    </div>
+
+    <div id="lobbyPanel" class="card">
+      <h2>Players</h2>
+      <div id="lobbyList"></div>
+      <div class="row" style="margin-top:12px;">
+        <button class="ghost small" onclick="addBot()">+ Add bot</button>
+        <button id="startBtn" onclick="startGame()">Start game</button>
+      </div>
+      <p class="muted" style="font-size:13px;">Share this page's URL so others can join with the code above.</p>
+    </div>
+
+    <div id="playPanel" class="hidden">
+      <div class="card" id="lotCard">
+        <h2>On the block</h2>
+        <div class="lot-hero">
+          <div class="lot-glyph" id="lotGlyph"></div>
+          <div>
+            <div><span class="lot-points" id="lotPoints"></span> <span class="muted">base points</span></div>
+            <div id="lotWorth" class="muted" style="font-size:14px;"></div>
+          </div>
+          <div class="grow"></div>
+          <div class="timer" id="timer"></div>
+        </div>
+        <div class="bidbar">
+          <input id="bidInput" type="number" min="0" step="1" placeholder="Your bid">
+          <button id="bidBtn" onclick="sendBid()">Seal bid</button>
+          <span class="muted" id="bidHint"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Standings</h2>
+        <table id="standings">
+          <thead><tr><th>Player</th><th>Coins</th><th>Points</th><th>Sealed</th><th>Lots</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card" id="revealCard">
+        <h2>Last reveal</h2>
+        <div id="revealBody" class="muted">Waiting for the first reveal…</div>
+      </div>
+    </div>
+
+    <div id="finishPanel" class="hidden">
+      <div class="card">
+        <h2>Result</h2>
+        <div id="finishBody"></div>
+        <div class="row" style="margin-top:12px;">
+          <button onclick="location.reload()">Play again</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card rules">
+      <details>
+        <summary>Your private card (hidden multipliers)</summary>
+        <div id="privCard"></div>
+      </details>
+    </div>
+  </div>
+
+  <footer>Built for Taskmarket bounty TSK-JKVSTHB7 — AI-authored, played over one HTTP/JSON API by humans and agents alike.</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const API = "";
+let code = null, token = null, me = null, state = null;
+let lastRound = -1, lastPhase = "";
+
+function $(id) { return document.getElementById(id); }
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+function suitHtml(s) { return { sun: '<span class="suit sun">&#9788;</span>', moon: '<span class="suit moon">&#9784;</span>', star: '<span class="suit star">&#9733;</span>' }[s] || s; }
+async function api(path, body, method) {
+  const r = await fetch(API + path, {
+    method: method || (body ? "POST" : "GET"),
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+function save() {
+  if (code && token) { localStorage.setItem("sealed." + code, token); localStorage.setItem("sealed.last", code); }
+}
+function resume() {
+  const last = localStorage.getItem("sealed.last");
+  if (!last) return false;
+  const t = localStorage.getItem("sealed." + last);
+  if (!t) return false;
+  code = last; token = t;
+  return true;
+}
+async function refresh() {
+  if (!code) return;
+  try {
+    state = await api(`/api/games/${code}/state?token=${token}`);
+    render();
+  } catch (e) {
+    if (String(e.message).includes("not found")) { toast("Game expired"); location.reload(); }
+  }
+}
+
+async function createGame() {
+  const name = $("nameNew").value.trim() || "Host";
+  const j = await api("/api/games", { name });
+  code = j.code; token = j.token; save(); enterGame();
+}
+async function joinGame() {
+  const c = $("codeJoin").value.trim().toUpperCase();
+  const name = $("nameJoin").value.trim() || "Guest";
+  if (c.length !== 6) return toast("Enter the 6-character code");
+  try {
+    const j = await api(`/api/games/${c}/join`, { name });
+    code = j.code; token = j.token; save(); enterGame();
+  } catch (e) { toast(e.message); }
+}
+async function addBot() {
+  try { await api(`/api/games/${code}/bots`, { token, count: 1 }); refresh(); }
+  catch (e) { toast(e.message); }
+}
+async function startGame() {
+  try { await api(`/api/games/${code}/start`, { token }); refresh(); }
+  catch (e) { toast(e.message); }
+}
+async function sendBid() {
+  const v = parseInt($("bidInput").value, 10);
+  if (Number.isNaN(v) || v < 0) return toast("Enter a bid");
+  try { await api(`/api/games/${code}/bid`, { token, amount: v }); toast("Bid sealed"); refresh(); }
+  catch (e) { toast(e.message); }
+}
+function enterGame() {
+  $("home").classList.add("hidden");
+  $("game").classList.remove("hidden");
+  history.replaceState(null, "", "/" + (code ? "?code=" + code : ""));
+  refresh();
+}
+
+function render() {
+  if (!state) return;
+  $("codeLbl").textContent = state.code;
+  $("roundLbl").innerHTML = state.phase === "lobby"
+    ? '<span class="pill">lobby</span>'
+    : `<span class="pill">round ${state.round}/${state.totalRounds}</span>`;
+
+  // try resume by code in URL
+  if (!token && new URLSearchParams(location.search).get("code")) {
+    const c = new URLSearchParams(location.search).get("code").toUpperCase();
+    const t = localStorage.getItem("sealed." + c);
+    if (t) { code = c; token = t; }
+  }
+
+  const showLobby = state.phase === "lobby";
+  $("lobbyPanel").classList.toggle("hidden", !showLobby);
+  $("playPanel").classList.toggle("hidden", showLobby || state.phase === "finished");
+  $("finishPanel").classList.toggle("hidden", state.phase !== "finished");
+
+  if (showLobby) {
+    $("lobbyList").innerHTML = state.players.map(p =>
+      `<div class="row" style="padding:6px 0;"><span>${p.name}</span>${p.isBot ? '<span class="pill">bot</span>' : ""}<span class="grow"></span><span class="muted">${p.coins} coins</span></div>`
+    ).join("");
+    $("startBtn").disabled = state.players.length < 2;
+  }
+
+  if (state.lot && state.phase === "bidding") {
+    $("lotGlyph").innerHTML = suitHtml(state.lot.suit);
+    $("lotPoints").textContent = state.lot.points;
+    const m = state.you ? state.you.multipliers[state.lot.suit] : 1;
+    $("lotWorth").innerHTML = m === 2
+      ? `worth <b style="color:var(--gold)">${state.lot.points * 2} to you</b> (your &times;2 suit)`
+      : `worth ${state.lot.points} to you`;
+    const canBid = state.you && !state.you.bidLocked;
+    $("bidInput").disabled = !canBid;
+    $("bidBtn").disabled = !canBid;
+    $("bidInput").max = state.you ? state.you.coins : 100;
+    $("bidHint").textContent = canBid ? `you have ${state.you.coins} coins` : "bid sealed";
+    if (state.round !== lastRound) { $("lotCard").classList.remove("flash"); void $("lotCard").offsetWidth; $("lotCard").classList.add("flash"); lastRound = state.round; }
+  }
+
+  $("timer").textContent = state.secondsLeft !== null && state.phase === "bidding" ? "\u23F1 " + state.secondsLeft + "s" : "";
+
+  const tb = document.querySelector("#standings tbody");
+  tb.innerHTML = state.players.map(p => {
+    const lots = p.lots.map(l => suitHtml(l.suit)).join(" ");
+    return `<tr><td>${p.name}${p.isBot ? ' <span class="pill">bot</span>' : ""}</td><td>${p.coins}</td><td><b>${p.points}</b></td><td>${p.bidLocked ? "\u26BF" : "\u2026"}</td><td>${lots || "\u2014"}</td></tr>`;
+  }).join("");
+
+  if (state.lastReveal) {
+    const r = state.lastReveal;
+    $("revealBody").innerHTML =
+      `<div>Round ${r.round}: lot ${suitHtml(r.lot.suit)} ${r.lot.points} pts</div>` +
+      `<div class="row" style="gap:14px;margin-top:6px;">` +
+      r.bids.map(b => `<span class="pill">${b.player}: ${b.bid}</span>`).join(" ") +
+      `</div>` +
+      (r.award ? `<div style="margin-top:8px;">\u2192 <b>${r.award.to}</b> pays ${r.award.paid} and scores <b class="win">+${r.award.gained}</b>${r.award.mult === 2 ? ' <span class="pill">hidden \u00D72 revealed!</span>' : ""}</div>`
+               : `<div class="muted" style="margin-top:8px;">No positive bids — lot discarded.</div>`);
+  }
+
+  if (state.phase === "finished") {
+    const sorted = [...state.players].sort((a, b) => b.points - a.points || b.coins - a.coins);
+    $("finishBody").innerHTML =
+      `<div style="font-size:22px;margin-bottom:10px;">\uD83C\uDFC6 <b>${state.winner}</b> wins</div>` +
+      `<table><thead><tr><th>#</th><th>Player</th><th>Points</th><th>Coins left</th></tr></thead><tbody>` +
+      sorted.map((p, i) => `<tr><td>${i + 1}</td><td>${p.name}</td><td><b>${p.points}</b></td><td>${p.coins}</td></tr>`).join("") +
+      `</tbody></table>`;
+  }
+
+  if (state.you) {
+    $("privCard").innerHTML = state.suits.map(s => {
+      const m = state.you.multipliers[s];
+      return `<span class="mult x${m}">${suitHtml(s)} &times;${m}</span>&nbsp;&nbsp;`;
+    }).join("") + `<p class="muted" style="font-size:13px;">Only you see this. Exactly one suit pays you double — guard the information.</p>`;
+  }
+}
+
+// boot: ?code= join flow
+(function boot() {
+  const qp = new URLSearchParams(location.search);
+  const c = qp.get("code");
+  if (c && !resume()) {
+    $("codeJoin").value = c.toUpperCase();
+    $("nameJoin").focus();
+  } else if (resume()) {
+    enterGame();
+  }
+})();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>
